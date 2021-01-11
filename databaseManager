@@ -1,0 +1,276 @@
+var utils = require("./utils");
+
+/** 
+ * Provide database management
+ * @class DatabaseManager
+ * @constructor
+ * @param {Object} [dto]
+ * @param {Object} [dto.client]: instance of Client
+ * @throw {Error}
+ */
+function DatabaseManager(dto) {
+    if (!dto || !dto.client) {
+
+        throw {
+            errorCode: "Missing_Parameter",
+            errorDetail: "DatabaseManager: dto.client must be provided"
+        };
+    }
+
+    this.client = dto.client;
+}
+
+/**
+ * @method insert
+ * write/insert query
+ * @param {Object} data: contains tableName, isUpdate, params JSON object, headers JSON object
+ * @param {String} tableName: The name of the table inserting into
+ * @param {Boolean} isUpdate (optional): true/false in case of inserting or updating a record
+ * @param {Object} params {key:value} or [{key:value}]: The key-value pair representing the column name and its value. It can be a single JSON object or an array of JSON objects in case of bulk insert
+ * @param {Object} headers {key:value} (optional): In case you want to merge duplicates when inserting, you can send a header {"Prefer": "resolution=ignore-duplicates"}. In this case the params should include the primary key
+ * Request sample
+ * var data = {
+ *	tableName: "tableName",
+ *	params: {columnName1:value1, columnName2:value2}
+ * }
+ * @return query result
+ * @throw {Error}
+ */
+DatabaseManager.prototype.insert = function(data){
+    if(!data && !utils.valid(data.tableName) || !utils.valid(data.params)){
+        throw {
+            errorCode: "Missing_Parameter",
+            errorDetail: "DatabaseManager: insert, tableName and params must be provided"
+        };   
+    }
+    
+    var options = {
+        api: data.tableName,
+        method: (data.isUpdate ? "PATCH" : "POST"),
+        params:	data.params 
+    }
+
+    return this.client.callApi(options);
+}
+
+/**
+ * @method query
+ * read query
+ * @param {Object} data: contains tableName, params JSON object, queryString, headers
+ * @param {String} tableName: The name of the table inserting into
+ * @param {Object} params {key:value} or [{key:value}] (optional): The key-value pair representing the column name and its value. It can be a single JSON object or an array of JSON objects in case of bulk insert
+ * @param {String} queryString (optional): 
+ 	- horizontal filtering: specify the filter on columns such as: columnName1=gte.18&columnName2=is.true
+    - vertical filtering: specify the column(s) to be returned preceded by "select=" and the filter send it in params, such as: select=columnName1,columnName2. In params, set the filter to be performed such as {columnName1: value1, columnName2: value2} 
+    - Ordering: set in the query string order=columnName.{{desc|asc|nullsfirst|nullslast|desc.nullslast}} 
+    - Pagination: specify limit and offset in query string, such as: limit=15&offset=30 (pagination can also be specified in the headers)
+ * @param {Object} headers {key:value} (optional): The key-value pair representing the header name and its value
+ 	- Pagination: {"Range Unit": "items", "Range": "{{beginRow}}-{{endRow}}"}
+    - Exact count: {"prefer": "count=exact"} (very slow if data is huge)
+    - Planned count: {"prefer": "count=planned"} (get fairly accurate total records instead of using the slow exact count)
+    - Estimated count: {"prefer": "count=estimated"} (gets exact count when records are few and estimated one when records are huge)
+ * Request sample
+ * var data = {
+ *	tableName: "tableName",
+ *	params: {columnName1:value1, columnName2:value2},
+ *  queryString: "columnName1=gte.18&columnName2=is.true",
+ *  headers: {"Range Unit": "items", "Range": "0-19"}
+ * }
+ * @return query result
+ * @throw {Error}
+ */
+DatabaseManager.prototype.query = function(data){
+    if(!data && !utils.valid(data.tableName)){
+        throw {
+            errorCode: "Missing_Parameter",
+            errorDetail: "DatabaseManager: query, tableName must be provided"
+        };   
+    }
+    
+    var options = {
+        api: data.tableName,
+        method: "GET",
+        params:	data.params,
+        queryString: data.queryString
+    }
+    if(data.headers)
+        options["headers"] = data.headers;
+
+    return this.client.callApi(options);
+}
+
+/**
+ * @method delete
+ * drop query
+ * @param {Object} data: contains tableName, params JSON object, headers JSON object, queryString
+ * @param {String} tableName: The name of the table
+ * @param {Object} params {key:value} or [{key:value}] (Required if queryString is not sent): The key-value pair representing the column name and its value. It can be a single JSON object or an array of JSON objects in case of bulk delete
+ * @param {String} queryString (Required if params is not sent): query string to delete
+ * @param {Object} headers {key:value} (optional): you can send a header {"Prefer": "return=representation"}
+ * Request sample
+ * var data = {
+ *	tableName: "tableName",
+ *	params: {columnName1:value1, columnName2:value2}
+ * }
+ * @return query result
+ * @throw {Error}
+ */
+DatabaseManager.prototype.delete = function(data){
+    if(!data && !utils.valid(data.tableName) || !utils.valid(data.params) || !utils.valid(data.queryString)){
+        throw {
+            errorCode: "Missing_Parameter",
+            errorDetail: "DatabaseManager: insert, tableName and queryString/params must be provided"
+        };   
+    }
+    
+    var options = {
+        api: data.tableName,
+        method: "DELETE",
+        params:	data.params,
+        queryString: data.queryString,
+        headers: data.headers
+    }
+
+    return this.client.callApi(options);
+}
+
+/**
+ * @method addPolicy
+ * add continuous aggregate policy
+ * @param {Object} params: contains continuous_aggregate, start_offset, end_offset, schedule_interval, if_not_exists
+ * @param {String} continuous_aggregate: The continuous aggregate to add the policy for
+ * @param {INTERVAL or integer} start_offset: Start of the refresh window as an interval relative to the time when the policy is executed
+ * @param {INTERVAL or integer} end_offset: End of the refresh window as an interval relative to the time when the policy is executed
+ * @param {INTERVAL} schedule_interval: Interval between refresh executions in wall-clock time
+ * @param {Boolean} if_not_exists (optional): Set to true to avoid throwing an error if the continuous aggregate policy already exists. A notice is issued instead. Defaults to false
+ * Request sample
+ * var params: {
+ *		continuous_aggregate:"conditions_summary", 
+ *   	start_offset: "INTERVAL '1 month'",
+ *		end_offset: "INTERVAL '1 hour'",
+ *		schedule_interval: "INTERVAL '1 hour'",
+ *		if_not_exists: true
+ * }
+ * @return query result
+ * @throw {Error}
+ */
+DatabaseManager.prototype.addPolicy = function(params){
+    if(!params && !utils.valid(params.continuous_aggregate) || !utils.valid(params.start_offset) || !utils.valid(params.end_offset) || !utils.valid(params.schedule_interval)){
+        throw {
+            errorCode: "Missing_Parameter",
+            errorDetail: "DatabaseManager: addPolicy, continuous_aggregate, start_offset, end_offset and schedule_interval must be provided"
+        };   
+    }
+    
+    var options = {
+        api: "rpc/add_continuous_aggregate_policy",
+        method: "POST",
+        params:	params
+    }
+
+    return this.client.callApi(options);
+}
+
+/**
+ * @method removePolicy
+ * remove continuous aggregate policy
+ * @param {Object} params: contains continuous_aggregate
+ * @param {String} continuous_aggregate: The continuous aggregate to remove the policy for
+ * Request sample
+ * var params: {
+ *		continuous_aggregate:"conditions_summary"
+ * }
+ * @return query result
+ * @throw {Error}
+ */
+DatabaseManager.prototype.removePolicy = function(params){
+    if(!params && !utils.valid(params.continuous_aggregate)){
+        throw {
+            errorCode: "Missing_Parameter",
+            errorDetail: "DatabaseManager: removePolicy, continuous_aggregate must be provided"
+        };   
+    }
+    
+    var options = {
+        api: "rpc/remove_continuous_aggregate_policy",
+        method: "POST",
+        params:	params
+    }
+
+    return this.client.callApi(options);
+}
+
+/**
+ * @method refreshPolicy
+ * refresh continuous aggregate policy
+ * @param {Object} params: contains continuous_aggregate, window_start, and window_end
+ * @param {String} continuous_aggregate: The continuous aggregate to remove the policy for
+ * @param {String} window_start: Start of the window to refresh, has to be before window_end. NULL is eqivalent to MIN(timestamp) of the hypertable.
+ * @param {String} window_end: End of the window to refresh, has to be after window_start. NULL is eqivalent to MAX(timestamp) of the hypertable.
+ * Request sample
+ * var params: {
+ *		continuous_aggregate:"conditions_summary",
+ *		window_start: "2020-01-01",
+ *		window_end: "2020-02-01"
+ * }
+ * @return query result
+ * @throw {Error}
+ */
+DatabaseManager.prototype.refreshPolicy = function(params){
+    if(!params && !utils.valid(params.continuous_aggregate) || !utils.valid(params.window_start) || !utils.valid(params.window_end)){
+        throw {
+            errorCode: "Missing_Parameter",
+            errorDetail: "DatabaseManager: refreshPolicy, continuous_aggregate, window_start, and window_end must be provided"
+        };   
+    }
+    
+    var options = {
+        api: "rpc/refresh_continuous_aggregate_policy",
+        method: "POST",
+        params:	params
+    }
+
+    return this.client.callApi(options);
+}
+
+/**
+ * @method callProcedure
+ * call a procedure with parameters
+ * @param {Object} params: contains functionName, queryString, params, method, and headers
+ * @param {String} functionName: The name of the function to be called
+ * @param {String} queryString (optional): An optinal query string containing the parameters expected by the function
+ * @params {Object} params (optional): A JSON representing the parameters used in the function. This must be associated with a header (Prefer: params=single-object). The JSON value can also be an array which requires sending the header (Content-Type: application/json) in the request and the key of the JSON must match the attribute name expected in the function
+ * @param {String} method (optional): Defaults to POST. Can be used as GET on immutable functions that are readonly
+ * @param {Object} headers (optional): A JSON object of headers based on preference
+ * Request sample
+ * var data = {
+ *  functionName: "function_name",
+ *  queryString: "a=1&b=2",
+ *	params: {
+ *		a:1,
+ *		b:2
+ *  },
+ *  method: "POST",
+ *  headers: {}
+ * }
+ * @return query result
+ * @throw {Error}
+ */
+DatabaseManager.prototype.callProcedure = function(data){
+    if(!data && !utils.valid(data.functionName)){
+        throw {
+            errorCode: "Missing_Parameter",
+            errorDetail: "DatabaseManager: function name must be provided"
+        };   
+    }
+    
+    var options = {
+        api: "rpc/" + data.functionName,
+        method: data.method || "POST",
+        params:	data.params,
+        headers: data.headers,
+        queryString: data.queryString
+    }
+
+    return this.client.callApi(options);
+}
