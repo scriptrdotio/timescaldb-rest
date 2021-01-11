@@ -1,0 +1,50 @@
+var http = require("http");
+var utils = require("./utils");
+var clientModule = require("./client");
+var databaseManagerModule = require("./databaseManager");
+
+/**
+ * Main entry point to TimescaleDb connector. Use instances of this class as factories to obtain
+ * instances of the other main classes (managers)
+ * @class TimescaleDb
+ * @constructor
+ * @param {Object} [credentials]
+ * @param {String} [credentials.url]: url host and port to connect to the db
+ * @param {String} [credentials.username]: (Optional) username used to connect to the db
+ * @param {String} [credentials.password]: (Optional) password used to connect to the db
+ * @throw {Error}
+ */
+function TimescaleDb(credentials){
+    if (!credentials || !credentials.url) {
+         throw {
+            errorCode: "Missing_Parameter",
+            errorDetail: "TimescaleDb: url must be provided"
+        };
+    }
+
+    this.url = credentials.url.endsWith("/") ? credentials.url : (credentials.url + "/");
+    
+    //if username and password are defined means authentication in enabled
+    this.username = credentials.username;
+    this.password = credentials.password;
+    this.authEnabled = (utils.valid(this.username) && utils.valid(this.password)) ? true : false;
+
+    this.client = new clientModule.Client({
+        url: this.url,
+        authEnabled: this.authEnabled,
+        username: this.username,
+        password: this.password
+    });
+}
+
+/**
+ * @method getDatabaseManager
+ * @throw {Error}
+ */
+TimescaleDb.prototype.getDatabaseManager = function(){
+    if (!this.databaseManager) {
+        this.databaseManager = new databaseManagerModule.DatabaseManager({client: this.client});
+    }
+
+    return this.databaseManager;
+}
