@@ -9,10 +9,11 @@ var log = require("log"); log.setLevel("info");
  * @throw {Error}
  */
 function Client(credentials) {
-    if (!credentials || !credentials.url || !credentials.authEnabled) {
+    log.info("credentials: " + JSON.stringify(credentials));
+    if (!credentials || !credentials.url) {
         throw {
             errorCode: "Missing_Parameter",
-            errorDetail: "Client: credentials.url, credentials.dbName and credentials.authEnabled must be provided"
+            errorDetail: "Client: credentials.url must be provided"
         };
     }
 
@@ -47,6 +48,7 @@ Client.prototype.callApi = function(params) {
 };
 
 Client.prototype._callApi = function(params) {
+    log.info("params: " + JSON.stringify(params));
     if(!params.api){
         throw {
             errorCode: "Missing_Parameter",
@@ -64,11 +66,15 @@ Client.prototype._callApi = function(params) {
     }
 
     if(params.headers){
+        log.info("params.headers exist");
         if(this.headers){
+            log.info("appending this.headers to params.headers");
+            log.info("this.headers: " + JSON.stringify(this.headers));
             var keys = Object.keys(this.headers);
             for(var i = 0; i < keys.length; i++){
                 params.headers[keys[i]] = this.headers[keys[i]];
             }
+            log.info("params.headers after append: " + JSON.stringify(params.headers));
         }
     }else
     	params.headers = this.headers ? this.headers : {};
@@ -77,22 +83,30 @@ Client.prototype._callApi = function(params) {
     var response = http.request(params);
 
     log.info("Received following response: " + JSON.stringify(response));
-    if (response.status == "200" || response.status == "201") {
-        var responseBody = "";
-        if (response.body) {
-
+    log.info("response headers: " + JSON.stringify(response.headers));
+    if (response.status == "200" || response.status == "201" || response.status == "206" || response.status == "204") {
+        var finalResponse = {};
+        var responseBody = response.body;
+        var responseHeaders = response.headers;
+        
+        if (responseBody) {
             try { 
-                responseBody = JSON.parse(response.body ?  response.body : {});
+                responseBody = JSON.parse(responseBody ?  responseBody : {});
             }catch(exception) {
-                responseBody = response.body;
+                responseBody = responseBody;
             } 
-        }    
+            
+            if (responseBody.error || responseBody.errorCode) {
+                throw response;
+            }
+            finalResponse.body = responseBody;
+        }   
 
-        if (responseBody.error || responseBody.errorCode) {
-            throw response;
-        }else {
-            return responseBody;
-        }
+        if (responseHeaders) {
+            finalResponse.headers = responseHeaders;
+        }  
+
+        return finalResponse;
     }else {
         throw response;
     }
@@ -122,7 +136,7 @@ Client.prototype._handleError = function(response) {
     }else{
         throw {
             "errorCode": "Invocation_Error",
-            "errorDetail": errorObj
+            "errorDetail": typeof(errorObj) == "object" ? JSON.stringify(errorObj) : errorObj
         };
     }
 
