@@ -1,0 +1,78 @@
+var moment = require("modules/momentjs/moment.min.js").moment;
+var timescaleModule = require("timescaldb/timescaledb");
+var log = require("log"); log.setLevel("info");
+
+try{
+    /* instantiate the TimescaleDb connector using some timescaleDB host, username, password and dbName */
+    var timescaleDb = new timescaleModule.TimescaleDb({"url":"http://saepio-timescaledb.scriptr.io:3000"});
+    
+    var databaseManager = timescaleDb.getDatabaseManager();
+    
+    //insert API
+    /*var currentDate = moment().format("YYYY-MM-DD HH:mm:ss");
+    var params = {
+        tableName: "encounters",
+        params: {
+            time: currentDate,
+            bracelet1id: "LN12345",
+            bracelet2id: "LN12346",
+            user1id: "leila",
+            user2id: "nizam",
+            distance: 3,
+            gatewayid: "GATEWAY1"
+        }
+    };
+    
+    return databaseManager.insert(params);*/
+    
+    //query
+    /***
+    //example filter on column user1id
+    var params = {
+        tableName: "encounters",
+        queryString: "user1id=fts.alexander@gmail.com"
+    };
+    return databaseManager.query(params);
+    
+    //example order by
+    params = {
+        tableName: "encounters",
+        queryString: "order=distance.desc"
+    };
+    
+    //example pagination using limit and offset
+    params = {
+        tableName: "encounters",
+        queryString: "user1id=fts.alexander@gmail.com&limit=2&offset=2&order=distance.desc"
+    };
+    
+    //example pagination using the header
+    params = {
+        tableName: "encounters",
+        headers: {"Range Unit": "items", "Range": "0-1"}
+    }
+    
+    //example get total count
+    params = {
+        tableName: "encounters",
+        queryString: "user1id=fts.alexander@gmail.com&limit=2&order=distance.desc",
+        headers: {"prefer": "count=estimated"}
+    };
+    
+    return databaseManager.query(params);
+    ***/
+    
+    //delete
+    /***
+    var params = {
+        tableName: "encounters",
+        queryString: "user1id=fts.alexander@gmail.com"
+    };
+    
+    return databaseManager.delete(params);
+    ***/
+    
+} catch(e) {
+    log.error("exception: " + JSON.stringify(e));
+    return e;
+}
