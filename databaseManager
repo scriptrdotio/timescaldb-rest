@@ -25,9 +25,10 @@ function DatabaseManager(dto) {
  * write/insert query
  * @param {Object} data: contains tableName, isUpdate, params JSON object, headers JSON object
  * @param {String} tableName: The name of the table inserting into
- * @param {Boolean} isUpdate (optional): true/false in case of inserting or updating a record
+ * @param {Boolean} isUpdate (optional): true/false in case of inserting or updating a record. If this is true, the method used will be PATCH and not POST. However, you can still use the POST method to update a record in conjunction with the header {Prefer: resolution=merge-duplicates}
+ * @param {String} queryString (optional): to resolve unique constraint issue when updating an existing record, you can send the queryString on_conflict=name
  * @param {Object} params {key:value} or [{key:value}]: The key-value pair representing the column name and its value. It can be a single JSON object or an array of JSON objects in case of bulk insert
- * @param {Object} headers {key:value} (optional): In case you want to merge duplicates when inserting, you can send a header {"Prefer": "resolution=ignore-duplicates"}. In this case the params should include the primary key
+ * @param {Object} headers {key:value} (optional): In case you want to ignore duplicates when inserting, you can send a header {"Prefer": "resolution=ignore-duplicates"}, and if you want to merge duplicates, you can send a header {Prefer: resolution=merge-duplicates}. In both cases, the params should include the primary key
  * Request sample
  * var data = {
  *	tableName: "tableName",
@@ -47,7 +48,9 @@ DatabaseManager.prototype.insert = function(data){
     var options = {
         api: data.tableName,
         method: (data.isUpdate ? "PATCH" : "POST"),
-        params:	data.params 
+        params:	data.params,
+        queryString: data.queryString,
+        headers: data.headers
     }
 
     return this.client.callApi(options);
@@ -58,10 +61,9 @@ DatabaseManager.prototype.insert = function(data){
  * read query
  * @param {Object} data: contains tableName, params JSON object, queryString, headers
  * @param {String} tableName: The name of the table inserting into
- * @param {Object} params {key:value} or [{key:value}] (optional): The key-value pair representing the column name and its value. It can be a single JSON object or an array of JSON objects in case of bulk insert
  * @param {String} queryString (optional): 
  	- horizontal filtering: specify the filter on columns such as: columnName1=gte.18&columnName2=is.true
-    - vertical filtering: specify the column(s) to be returned preceded by "select=" and the filter send it in params, such as: select=columnName1,columnName2. In params, set the filter to be performed such as {columnName1: value1, columnName2: value2} 
+    - vertical filtering: specify the column(s) to be returned preceded by "select="
     - Ordering: set in the query string order=columnName.{{desc|asc|nullsfirst|nullslast|desc.nullslast}} 
     - Pagination: specify limit and offset in query string, such as: limit=15&offset=30 (pagination can also be specified in the headers)
  * @param {Object} headers {key:value} (optional): The key-value pair representing the header name and its value
@@ -72,7 +74,6 @@ DatabaseManager.prototype.insert = function(data){
  * Request sample
  * var data = {
  *	tableName: "tableName",
- *	params: {columnName1:value1, columnName2:value2},
  *  queryString: "columnName1=gte.18&columnName2=is.true",
  *  headers: {"Range Unit": "items", "Range": "0-19"}
  * }
@@ -104,29 +105,27 @@ DatabaseManager.prototype.query = function(data){
  * drop query
  * @param {Object} data: contains tableName, params JSON object, headers JSON object, queryString
  * @param {String} tableName: The name of the table
- * @param {Object} params {key:value} or [{key:value}] (Required if queryString is not sent): The key-value pair representing the column name and its value. It can be a single JSON object or an array of JSON objects in case of bulk delete
- * @param {String} queryString (Required if params is not sent): query string to delete
+ * @param {String} queryString: query string to delete
  * @param {Object} headers {key:value} (optional): you can send a header {"Prefer": "return=representation"}
  * Request sample
  * var data = {
  *	tableName: "tableName",
- *	params: {columnName1:value1, columnName2:value2}
+ *	queryString: "columnName1=gte.18"
  * }
  * @return query result
  * @throw {Error}
  */
 DatabaseManager.prototype.delete = function(data){
-    if(!data && !utils.valid(data.tableName) || !utils.valid(data.params) || !utils.valid(data.queryString)){
+    if(!data && !utils.valid(data.tableName) || !utils.valid(data.queryString)){
         throw {
             errorCode: "Missing_Parameter",
-            errorDetail: "DatabaseManager: insert, tableName and queryString/params must be provided"
+            errorDetail: "DatabaseManager: delete, tableName and queryString must be provided"
         };   
     }
     
     var options = {
         api: data.tableName,
         method: "DELETE",
-        params:	data.params,
         queryString: data.queryString,
         headers: data.headers
     }
@@ -155,12 +154,12 @@ DatabaseManager.prototype.delete = function(data){
  * @throw {Error}
  */
 DatabaseManager.prototype.addPolicy = function(params){
-    if(!params && !utils.valid(params.continuous_aggregate) || !utils.valid(params.start_offset) || !utils.valid(params.end_offset) || !utils.valid(params.schedule_interval)){
+   /* if(!params && !utils.valid(params.continuous_aggregate) || !utils.valid(params.start_offset) || !utils.valid(params.end_offset) ||  !utils.valid(params.schedule_interval)){
         throw {
             errorCode: "Missing_Parameter",
             errorDetail: "DatabaseManager: addPolicy, continuous_aggregate, start_offset, end_offset and schedule_interval must be provided"
         };   
-    }
+    }*/
     
     var options = {
         api: "rpc/add_continuous_aggregate_policy",
